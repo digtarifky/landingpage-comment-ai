@@ -1,9 +1,14 @@
 // src/app/api/demo/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { prisma } from '@/lib/prisma';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const globalForDemoLimits = globalThis as typeof globalThis & {
+  demoRateLimits?: Map<string, { count: number; expiresAt: number }>;
+};
+const demoRateLimits = (globalForDemoLimits.demoRateLimits ??= new Map());
+const DEMO_LIMIT = 5;
+const DEMO_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,29 +20,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Parameter tidak lengkap' }, { status: 400 });
     }
 
-    // 1. Cek Batas Percobaan IP di Database Supabase
-    const rateRecord = await prisma.demoRateLimit.findUnique({
-      where: { ipAddress: ip },
-    });
+    const now = Date.now();
+    const rateRecord = demoRateLimits.get(ip);
+    if (rateRecord && rateRecord.expiresAt <= now) demoRateLimits.delete(ip);
 
-    if (rateRecord && rateRecord.requestCount >= 5) {
+    if (rateRecord && rateRecord.expiresAt > now && rateRecord.count >= DEMO_LIMIT) {
       return NextResponse.json(
         { error: 'Batas percobaan demo tercapai (5x). Beli lisensi seumur hidup untuk akses penuh tanpa batas!' },
         { status: 429 }
       );
     }
 
-    // Update atau buat catatan limit IP
-    if (rateRecord) {
-      await prisma.demoRateLimit.update({
-        where: { ipAddress: ip },
-        data: { requestCount: { increment: 1 } },
-      });
-    } else {
-      await prisma.demoRateLimit.create({
-        data: { ipAddress: ip, requestCount: 1 },
-      });
+    if (demoRateLimits.size > 1000) {
+      for (const [address, limit] of demoRateLimits) {
+        if (limit.expiresAt <= now) demoRateLimits.delete(address);
+      }
     }
+    demoRateLimits.set(ip, {
+      count: rateRecord && rateRecord.expiresAt > now ? rateRecord.count + 1 : 1,
+      expiresAt: rateRecord && rateRecord.expiresAt > now ? rateRecord.expiresAt : now + DEMO_WINDOW_MS,
+    });
 
     // 2. Eksekusi Model Gemini 1.5 Flash
     const model = genAI.getGenerativeModel({

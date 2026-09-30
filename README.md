@@ -1,8 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Setup
 
-## Getting Started
+Copy `.env.example` to `.env.local`. Create an OAuth Client ID of type **Web application** in Google Cloud Console and authorize `http://localhost:3000` as a JavaScript origin. Set that ID as `NEXT_PUBLIC_GOOGLE_CLIENT_ID` here and `GOOGLE_WEB_CLIENT_ID` in Backend. If the consent screen is in Testing, add your Google account as a test user. Set `NEXT_PUBLIC_EXTENSION_ID` to the ID shown at `chrome://extensions`; add the Landingpage origin to the extension's `externally_connectable.matches` in its manifest. `NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:5000`.
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
@@ -14,9 +14,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open [http://localhost:3000](http://localhost:3000). Unauthenticated visitors are redirected to Google sign-in before entering `/dashboard`.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
