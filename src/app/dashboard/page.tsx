@@ -12,6 +12,7 @@ type DashboardUser = {
 const subscribeToHydration = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
+const EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID;
 
 function getStoredUser(): DashboardUser {
   try {
@@ -32,6 +33,34 @@ export default function DashboardPage() {
   const user = isHydrated ? getStoredUser() : null;
 
   useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key === 'commentai.accessToken' && !event.newValue) {
+        router.replace('/login');
+      }
+    }
+
+    function handleExtensionMessage(event: MessageEvent) {
+      if (
+        event.source !== window ||
+        event.origin !== window.location.origin ||
+        event.data?.source !== 'commentai-extension' ||
+        event.data?.type !== 'COMMENTAI_EXTENSION_LOGOUT'
+      ) return;
+
+      localStorage.removeItem('commentai.accessToken');
+      localStorage.removeItem('commentai.user');
+      router.replace('/login');
+    }
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('message', handleExtensionMessage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('message', handleExtensionMessage);
+    };
+  }, [router]);
+
+  useEffect(() => {
     if (isHydrated && !accessToken) {
       router.replace('/login');
     }
@@ -40,6 +69,12 @@ export default function DashboardPage() {
   function handleLogout() {
     localStorage.removeItem('commentai.accessToken');
     localStorage.removeItem('commentai.user');
+    const runtime = (window as Window & { chrome?: { runtime?: { sendMessage?: Function } } }).chrome?.runtime;
+    if (EXTENSION_ID && runtime?.sendMessage) {
+      runtime.sendMessage(EXTENSION_ID, { type: 'COMMENTAI_EXTENSION_LOGOUT' }, () => {
+        void (window as Window & { chrome?: { runtime?: { lastError?: unknown } } }).chrome?.runtime?.lastError;
+      });
+    }
     router.replace('/login');
   }
 
